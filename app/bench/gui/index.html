@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALL-ISR feed bench</title>
+<style>
+  :root { --bg:#10140c; --card:#1a2214; --line:rgba(231,236,220,.12); --text:#e7ecdc; --muted:#9aa58a; --green:#b6d36a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", sans-serif; }
+  header, main { padding: 16px 20px; }
+  header { border-bottom: 1px solid var(--line); }
+  h1 { margin: 0 0 6px; font-size: 16px; letter-spacing: .08em; }
+  p { margin: 0; color: var(--muted); max-width: 68ch; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  input[type="text"], input[type="number"] { background: #12180e; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 180px; }
+  .note { color: var(--muted); font-size: 12px; }
+  .on { color: var(--green); }
+  label.interval { display: inline-flex; gap: 8px; align-items: center; margin-top: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>ALL-ISR FEED BENCH</h1>
+  <p>Lab feeds only. This is not the integrator. Turn a feed on to send that wire to the address below. The integrator has to be listening there. Orbits stay inside 10 miles of Key West.</p>
+</header>
+<main>
+  <label class="interval">Refresh seconds <input id="interval" type="number" min="1" max="60" value="5"></label>
+  <table>
+    <thead><tr><th>On</th><th>Feed</th><th>Target</th><th>Last</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<script>
+async function post(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return res.json();
+}
+
+function render(state) {
+  document.getElementById("interval").value = state.interval;
+  const body = document.getElementById("rows");
+  body.innerHTML = "";
+  state.feeds.forEach((feed) => {
+    const tr = document.createElement("tr");
+    const on = document.createElement("td");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = !!feed.enabled;
+    box.onchange = () => post("/api/feed", { id: feed.id, enabled: box.checked, target: target.value }).then(render);
+    on.append(box);
+    const name = document.createElement("td");
+    const title = document.createElement("div");
+    title.textContent = feed.label;
+    const note = document.createElement("div");
+    note.className = "note";
+    note.textContent = feed.note;
+    name.append(title, note);
+    const dest = document.createElement("td");
+    const target = document.createElement("input");
+    target.type = "text";
+    target.value = feed.target;
+    target.onchange = () => post("/api/feed", { id: feed.id, enabled: box.checked, target: target.value }).then(render);
+    dest.append(target);
+    const last = document.createElement("td");
+    last.textContent = feed.last || "";
+    last.className = feed.last === "sent" ? "on" : "";
+    tr.append(on, name, dest, last);
+    body.append(tr);
+  });
+}
+
+document.getElementById("interval").onchange = (event) => {
+  post("/api/interval", { seconds: Number(event.target.value) }).then(render);
+};
+
+async function refresh() {
+  const state = await (await fetch("/api/state")).json();
+  if (document.activeElement && document.activeElement.matches("input")) return;
+  render(state);
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
